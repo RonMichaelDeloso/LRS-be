@@ -4,25 +4,31 @@ import type { BookModel } from "../models/Book.js";
 import type { GenreModel } from "../models/Genre.js";
 
 export const getAllBooks = async (c: Context) => {
-    try {
-        const [rows] = await pool.query<BookModel[]>(
-            'Select book.*, genre.Genre From book LEFT JOIN book_genre ON book.Book_id = book_genre.Book_id LEFT JOIN genre ON book_genre.Genre_id = generateCookie.Genre_id GROUP BY getAllBooks.Book_id'
-        );
-        return c.json (rows,200);
-    } catch (error) {
-        return c.json ({ message: "Server error", error}, 500);
-    }
+  try {
+    const [rows] = await pool.query<BookModel[]>(`SELECT
+         book.*, 
+         GROUP_CONCAT(genre.Genre) as Genres 
+         FROM book LEFT JOIN book_genre ON book.Book_id = book_genre.Book_id 
+         LEFT JOIN genre ON book_genre.Genre_id = genre.Genre_id GROUP BY book.Book_id`);
+    return c.json(rows, 200);
+  } catch (error) {
+    return c.json({ message: "Server error", error }, 500);
+  }
 };
 
 export const getBookById = async (c: Context) => {
 const id = c.req.param("id");
 try{
     const [rows] = await pool.query<BookModel[]>(
-        'SELECT book.*, genre.Genre FROM book LEFT JOIN book_genre ON book.Book_id = book_genre.Book_id LEFT JOIN genre ON book_genre.Genre_id = genre.Genre_id WHERE book.Book_id = ? GROUP BY book.Book_id', [id]
-    );
+        `SELECT book.*,
+        GROUP_CONCAT(genre.Genre) as Genres 
+        FROM book 
+        LEFT JOIN book_genre ON book.Book_id = book_genre.Book_id 
+        LEFT JOIN genre ON book_genre.Genre_id = genre.Genre_id WHERE book.Book_id = ? GROUP BY book.Book_id`, [id]);
     if (rows.length === 0){
-        return c.json({ message: "Book  not found" }, 404);
-    }
+        return c.json({ message: "Book not found" }, 404);
+    };
+
     return c.json(rows[0], 200);
         
     }catch (error) {
@@ -44,7 +50,7 @@ export const addBook = async (c: Context) => {
         if (Genre_id && Genre_id.length > 0) {
             const genreValues = Genre_id.map((g: number) => [Book_id, g]);
             await pool.query(
-                'INSERT INTO book_genre (Book_id, Genre_id VALUES ?',
+                'INSERT INTO book_genre (Book_id, Genre_id) VALUES ?',
                 [genreValues]
             );
         }
@@ -61,21 +67,23 @@ export const updateBook = async (c: Context) => {
 
     try {
         await pool.query(
-            'UPDATE book isbn = ?, Title = ?, Author = ?, Status = ? WHERE book_id = ?',
+            'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ? WHERE Book_id = ?',
             [isbn, Title, Author, Status, id]
         );
 
-        return c.json ({ messsage: "Book updated successfully" }, 200);
+        return c.json ({ message: "Book updated successfully" }, 200);
     } catch (error) {
-        return c.json({ message: "Serveer error", error}, 500);
+        return c.json({ message: "Server error", error}, 500);
     }
 };
 
 export const deleteBook = async (c: Context) => {
     const id = c.req.param("id");
     try {
+        await pool.query('DELETE FROM book_genre WHERE Book_id = ?', [id]);
         await pool.query('DELETE FROM book WHERE Book_id = ?', [id]);
-        return c.json({ message: "Book deleted successfullt" }, 200);
+        
+        return c.json({ message: "Book deleted successfully" }, 200);
     } catch (error) {
         return c.json({ message: "Server error", error}, 500);
     }
