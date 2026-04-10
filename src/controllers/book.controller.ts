@@ -3,6 +3,8 @@ import pool from "../config/db.js";
 import type { BookModel } from "../models/Book.js";
 import type { GenreModel } from "../models/Genre.js";
 import type { UserModel } from "../models/Users.js";
+import fs from 'fs';
+import path from 'path';
 
 export const getAllBooks = async (c: Context) => {
   try {
@@ -44,7 +46,28 @@ export const getBookById = async (c: Context) => {
 };
 
 export const addBook = async (c: Context) => {
-  const { User_id, isbn, Title, Author, Genre_id } = await c.req.json(); // Changed Admin_id to User_id
+  const body = await c.req.parseBody();
+  const User_id = body.User_id as string;
+  const isbn = body.isbn as string;
+  const Title = body.Title as string;
+  const Author = body.Author as string;
+  
+  let Genre_id: number[] = [];
+  if (body.Genre_id) {
+    try { Genre_id = JSON.parse(body.Genre_id as string); } catch (e) {}
+  }
+
+  let Image_URL: string | null = null;
+  const image = body.image instanceof File ? body.image : undefined;
+
+  if (image) {
+    const arrayBuffer = await image.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const fileName = `${Date.now()}-${image.name.replace(/\s+/g, '_')}`;
+    const filePath = path.join(process.cwd(), 'uploads', fileName);
+    fs.writeFileSync(filePath, buffer);
+    Image_URL = `uploads/${fileName}`;
+  }
 
   try {
     const [users] = await pool.query<UserModel[]>(
@@ -53,12 +76,13 @@ export const addBook = async (c: Context) => {
     );
     
     if (users.length === 0) {
+      if (Image_URL) fs.unlinkSync(path.join(process.cwd(), Image_URL));
       return c.json({ message: "Unauthorized. Only admins can add books." }, 403);
     }
 
     const [result]: any = await pool.query(
-      'INSERT INTO book (User_id, isbn, Title, Author) VALUES (?, ?, ?, ?)',
-      [User_id, isbn, Title, Author]
+      'INSERT INTO book (User_id, isbn, Title, Author, Image_URL) VALUES (?, ?, ?, ?, ?)',
+      [User_id, isbn, Title, Author, Image_URL]
     );
 
     const Book_id = result.insertId;
@@ -79,13 +103,40 @@ export const addBook = async (c: Context) => {
 
 export const updateBook = async (c: Context) => {
   const id = c.req.param("id");
-  const { isbn, Title, Author, Status } = await c.req.json();
+  const body = await c.req.parseBody();
+  const isbn = body.isbn as string;
+  const Title = body.Title as string;
+  const Author = body.Author as string;
+  const Status = body.Status as string;
+
+  const image = body.image instanceof File ? body.image : undefined;
 
   try {
-    await pool.query(
-      'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ? WHERE Book_id = ?',
-      [isbn, Title, Author, Status, id]
-    );
+    let Image_URL: string | null = null;
+    if (image) {
+      const [existingBooks] = await pool.query<BookModel[]>('SELECT Image_URL FROM book WHERE Book_id = ?', [id]);
+      if (existingBooks.length > 0 && existingBooks[0].Image_URL) {
+        const oldFilePath = path.join(process.cwd(), existingBooks[0].Image_URL);
+        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+      }
+
+      const arrayBuffer = await image.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const fileName = `${Date.now()}-${image.name.replace(/\s+/g, '_')}`;
+      const filePath = path.join(process.cwd(), 'uploads', fileName);
+      fs.writeFileSync(filePath, buffer);
+      Image_URL = `uploads/${fileName}`;
+      
+      await pool.query(
+        'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ?, Image_URL = ? WHERE Book_id = ?',
+        [isbn, Title, Author, Status, Image_URL, id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ? WHERE Book_id = ?',
+        [isbn, Title, Author, Status, id]
+      );
+    }
 
     return c.json({ message: "Book updated successfully" }, 200);
   } catch (error) {
@@ -96,6 +147,12 @@ export const updateBook = async (c: Context) => {
 export const deleteBook = async (c: Context) => {
   const id = c.req.param("id");
   try {
+    const [existingBooks] = await pool.query<BookModel[]>('SELECT Image_URL FROM book WHERE Book_id = ?', [id]);
+    if (existingBooks.length > 0 && existingBooks[0].Image_URL) {
+      const oldFilePath = path.join(process.cwd(), existingBooks[0].Image_URL);
+      if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+    }
+
     await pool.query('DELETE FROM book_genre WHERE Book_id = ?', [id]);
     await pool.query('DELETE FROM book WHERE Book_id = ?', [id]);
     

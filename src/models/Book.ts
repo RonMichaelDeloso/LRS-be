@@ -7,5 +7,6 @@ export interface BookModel extends RowDataPacket {
   Title: string;
   Author: string | null;
   Status: 'Available' | 'Loaned' | 'Reserved';
+  Image_URL: string | null;
   created_at: Date;
 }

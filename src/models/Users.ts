@@ -10,4 +10,6 @@ export interface UserModel extends RowDataPacket {
   Max_books_allowed: number;
   status: 'Active' | 'Inactive';
   employee_id: string | null;  // Added for admin users
+  reset_otp: string | null;
+  reset_otp_expires: Date | null;
 }

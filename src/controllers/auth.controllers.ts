@@ -4,10 +4,6 @@ import type { UserModel } from "../models/Users.js";
 import type { Context } from "hono";
 import jwt from "jsonwebtoken";
 
-// Generate random 6-digit OTP
-const generateOTP = (): string => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 //---Register---
 export const register = async (c: Context) => {
@@ -77,42 +73,21 @@ export const login = async (c: Context) => {
     }
 };
 
-//---Forgot Password - Send OTP---
-export const forgotPassword = async (c: Context) => {
+//---Forgot Password Step 1: Verify email exists---
+export const verifyEmail = async (c: Context) => {
     const { Email } = await c.req.json();
 
     try {
-        // Check if user exists
         const [users] = await pool.query<UserModel[]>(
             "SELECT * FROM users WHERE Email = ?",
             [Email]
         );
 
         if (users.length === 0) {
-            return c.json({ message: "Email not found" }, 404);
+            return c.json({ message: "Email not found. Please check and try again." }, 404);
         }
 
-        const user = users[0];
-        
-        // Generate OTP
-        const otp = generateOTP();
-        const otpExpires = new Date();
-        otpExpires.setMinutes(otpExpires.getMinutes() + 15);
-
-        // Save OTP in database
-        await pool.query(
-            `UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE User_id = ?`,
-            [otp, otpExpires, user.User_id]
-        );
-
-        // For now, return OTP in response (in production, send via email)
-        console.log(`OTP for ${Email}: ${otp}`);
-
-        return c.json({
-            message: "OTP sent to your email",
-            otp: otp, // Remove this in production
-            email: Email
-        }, 200);
+        return c.json({ message: "Email verified." }, 200);
 
     } catch (error) {
         console.error(error);
@@ -120,78 +95,29 @@ export const forgotPassword = async (c: Context) => {
     }
 };
 
-//---Reset Password - Verify OTP and set new password---
-export const resetPassword = async (c: Context) => {
-    const { Email, OTP, NewPassword } = await c.req.json();
+//---Forgot Password Step 2: Reset password directly (no OTP)---
+export const resetPasswordDirect = async (c: Context) => {
+    const { Email, NewPassword } = await c.req.json();
 
     try {
-        // Find user with valid OTP
         const [users] = await pool.query<UserModel[]>(
-            `SELECT * FROM users 
-             WHERE Email = ? 
-             AND reset_otp = ? 
-             AND reset_otp_expires > NOW()`,
-            [Email, OTP]
+            "SELECT * FROM users WHERE Email = ?",
+            [Email]
         );
 
         if (users.length === 0) {
-            return c.json({ message: "Invalid or expired OTP" }, 400);
+            return c.json({ message: "Email not found." }, 404);
         }
 
         const user = users[0];
-        
-        // Hash new password
         const hashedPassword = await bcrypt.hash(NewPassword, 10);
 
-        // Update password and clear OTP
         await pool.query(
-            `UPDATE users 
-             SET Password = ?, reset_otp = NULL, reset_otp_expires = NULL 
-             WHERE User_id = ?`,
+            "UPDATE users SET Password = ? WHERE User_id = ?",
             [hashedPassword, user.User_id]
         );
 
-        return c.json({ message: "Password reset successfully" }, 200);
-
-    } catch (error) {
-        console.error(error);
-        return c.json({ message: "Server error" }, 500);
-    }
-};
-
-//---Resend OTP---
-export const resendOTP = async (c: Context) => {
-    const { Email } = await c.req.json();
-
-    try {
-        const [users] = await pool.query<UserModel[]>(
-            "SELECT * FROM users WHERE Email = ?",
-            [Email]
-        );
-
-        if (users.length === 0) {
-            return c.json({ message: "Email not found" }, 404);
-        }
-
-        const user = users[0];
-        
-        // Generate new OTP
-        const otp = generateOTP();
-        const otpExpires = new Date();
-        otpExpires.setMinutes(otpExpires.getMinutes() + 15);
-
-        await pool.query(
-            `UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE User_id = ?`,
-            [otp, otpExpires, user.User_id]
-        );
-
-        console.log(`New OTP for ${Email}: ${otp}`);
-
-        return c.json({
-            message: "New OTP sent to your email",
-            otp: otp, // Remove in production
-            email: Email
-        }, 200);
+        return c.json({ message: "Password reset successfully." }, 200);
 
     } catch (error) {
         console.error(error);
