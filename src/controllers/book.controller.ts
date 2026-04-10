@@ -153,6 +153,8 @@ export const deleteBook = async (c: Context) => {
       if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
     }
 
+    await pool.query('DELETE FROM reservation WHERE Book_id = ?', [id]);
+    await pool.query('DELETE FROM loan WHERE Book_id = ?', [id]);
     await pool.query('DELETE FROM book_genre WHERE Book_id = ?', [id]);
     await pool.query('DELETE FROM book WHERE Book_id = ?', [id]);
     
