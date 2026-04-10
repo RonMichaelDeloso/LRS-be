@@ -7,5 +7,5 @@ export interface ReservationModel extends RowDataPacket {
   Reserve_date: Date;
   Due_date: Date | null;
   Return_date: Date | null;
-  Status: 'Pending' | 'Completed' | 'Cancelled';  // ✅ no 'Approved'
+  Status: 'Pending' | 'Completed' | 'Cancelled'; 
 }

@@ -2,10 +2,10 @@ import type { RowDataPacket } from "mysql2";
 
 export interface BookModel extends RowDataPacket {
   Book_id: number;
-  Admin_id: number | null;
+  User_id: number ;  // Changed from Admin_id to User_id (can be student or admin)
   isbn: string;
   Title: string;
   Author: string | null;
-  Status: 'Available' | 'Loaned' | 'Reserved';  // ✅ 'Loaned' not 'Borrowed'
+  Status: 'Available' | 'Loaned' | 'Reserved';
   created_at: Date;
 }
