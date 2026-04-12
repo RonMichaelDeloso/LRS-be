@@ -11,12 +11,31 @@ import { cors } from 'hono/cors';
 import fs from 'fs';
 import path from 'path';
 
+import pool from './config/db.js';
+
 dotenv.config();
 
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
+
+// Auto-migrate: ensure 'type' column exists in notifications table
+async function runMigrations() {
+  try {
+    await pool.query(`
+      ALTER TABLE notifications 
+      ADD COLUMN IF NOT EXISTS \`type\` VARCHAR(50) DEFAULT 'general'
+    `);
+    console.log('✅ Migration: notifications.type column ready.');
+  } catch (err: any) {
+    // Column may already exist in some MySQL versions that don't support IF NOT EXISTS
+    if (!err.message?.includes('Duplicate column')) {
+      console.error('Migration warning:', err.message);
+    }
+  }
+}
+runMigrations();
 
 const app = new Hono()
 

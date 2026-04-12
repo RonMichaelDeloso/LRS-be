@@ -124,3 +124,64 @@ export const resetPasswordDirect = async (c: Context) => {
         return c.json({ message: "Server error" }, 500);
     }
 };
+
+//---Update Profile---
+export const updateProfile = async (c: Context) => {
+    const { User_id, First_name, Last_name, Email } = await c.req.json();
+    try {
+        await pool.query(
+            "UPDATE users SET First_name = ?, Last_name = ?, Email = ? WHERE User_id = ?",
+            [First_name, Last_name, Email, User_id]
+        );
+        return c.json({ message: "Profile updated successfully" }, 200);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error }, 500);
+    }
+};
+
+//---Admin Invite: send a notification to the student with type 'admin_invite'---
+export const inviteAdmin = async (c: Context) => {
+    const { Email } = await c.req.json();
+    try {
+        const [users] = await pool.query<UserModel[]>("SELECT * FROM users WHERE Email = ? AND Role_id = 1", [Email]);
+        if (users.length === 0) {
+            return c.json({ message: "Student with that email not found." }, 404);
+        }
+        const student = users[0];
+
+        // Check if there's already a pending invite
+        const [existing] = await pool.query<any[]>(
+            `SELECT * FROM notifications WHERE User_id = ? AND type = 'admin_invite' AND is_read = 0`,
+            [student.User_id]
+        );
+        if (existing.length > 0) {
+            return c.json({ message: "An invite is already pending for this student." }, 400);
+        }
+
+        await pool.query(
+            `INSERT INTO notifications (User_id, Message, type, is_read) VALUES (?, ?, 'admin_invite', 0)`,
+            [student.User_id, `You have been invited to become an Admin of the Library System. Click 'Join as Admin' to accept.`]
+        );
+
+        return c.json({ message: "Invite sent successfully!" }, 201);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error }, 500);
+    }
+};
+
+//---Accept Admin Invite: upgrade student to Admin---
+export const acceptAdminInvite = async (c: Context) => {
+    const { Notification_id, User_id } = await c.req.json();
+    try {
+        // Upgrade the user role to Admin
+        await pool.query(`UPDATE users SET Role_id = 2 WHERE User_id = ?`, [User_id]);
+        // Mark notification as read/handled
+        await pool.query(`DELETE FROM notifications WHERE Notification_id = ?`, [Notification_id]);
+        return c.json({ message: "You are now an Admin!" }, 200);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error }, 500);
+    }
+};
