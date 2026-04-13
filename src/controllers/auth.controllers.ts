@@ -152,7 +152,7 @@ export const inviteAdmin = async (c: Context) => {
 
         // Check if there's already a pending invite
         const [existing] = await pool.query<any[]>(
-            `SELECT * FROM notifications WHERE User_id = ? AND type = 'admin_invite' AND is_read = 0`,
+            `SELECT * FROM notifications WHERE User_id = ? AND Message LIKE 'You have been invited to become an Admin%' AND is_read = 0`,
             [student.User_id]
         );
         if (existing.length > 0) {
@@ -160,7 +160,7 @@ export const inviteAdmin = async (c: Context) => {
         }
 
         await pool.query(
-            `INSERT INTO notifications (User_id, Message, type, is_read) VALUES (?, ?, 'admin_invite', 0)`,
+            `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
             [student.User_id, `You have been invited to become an Admin of the Library System. Click 'Join as Admin' to accept.`]
         );
 
