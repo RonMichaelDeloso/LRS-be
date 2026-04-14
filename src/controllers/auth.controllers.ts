@@ -140,6 +140,17 @@ export const updateProfile = async (c: Context) => {
     }
 };
 
+//---Get All Users---
+export const getAllUsers = async (c: Context) => {
+    try {
+        const [users] = await pool.query("SELECT User_id, Role_id, First_name, Last_name, Email, status FROM users");
+        return c.json(users, 200);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error }, 500);
+    }
+};
+
 //---Admin Invite: send a notification to the student with type 'admin_invite'---
 export const inviteAdmin = async (c: Context) => {
     const { Email } = await c.req.json();
@@ -177,6 +188,7 @@ export const acceptAdminInvite = async (c: Context) => {
     try {
         // Upgrade the user role to Admin
         await pool.query(`UPDATE users SET Role_id = 2 WHERE User_id = ?`, [User_id]);
+        
         // Mark notification as read/handled
         await pool.query(`DELETE FROM notifications WHERE Notification_id = ?`, [Notification_id]);
         return c.json({ message: "You are now an Admin!" }, 200);

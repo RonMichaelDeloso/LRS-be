@@ -1,4 +1,4 @@
-import { login, register, verifyEmail, resetPasswordDirect, updateProfile, inviteAdmin, acceptAdminInvite } from "../controllers/auth.controllers.js";
+import { login, register, verifyEmail, resetPasswordDirect, updateProfile, inviteAdmin, acceptAdminInvite, getAllUsers } from "../controllers/auth.controllers.js";
 import { Hono } from "hono";
 
 const authRoutes = new Hono();
@@ -10,5 +10,6 @@ authRoutes.post("/reset-direct", resetPasswordDirect);
 authRoutes.put("/update-profile", updateProfile);
 authRoutes.post("/invite-admin", inviteAdmin);
 authRoutes.post("/accept-invite", acceptAdminInvite);
+authRoutes.get("/users", getAllUsers);
 
 export default authRoutes;
