@@ -28,6 +28,20 @@ async function runMigrations() {
       ADD COLUMN IF NOT EXISTS \`type\` VARCHAR(50) DEFAULT 'general'
     `);
     console.log('✅ Migration: notifications.type column ready.');
+
+    // Add 'Cancelled' to reservation Status ENUM
+    await pool.query(`
+      ALTER TABLE reservation 
+      MODIFY COLUMN Status ENUM('Pending', 'Completed', 'Returned', 'Cancelled') DEFAULT 'Pending'
+    `);
+    console.log('✅ Migration: reservation.Status enum ready.');
+
+    // Add 'Loaned' to book Status ENUM
+    await pool.query(`
+      ALTER TABLE book 
+      MODIFY COLUMN Status ENUM('Available', 'Reserved', 'Loaned') DEFAULT 'Available'
+    `);
+    console.log('✅ Migration: book.Status enum ready.');
   } catch (err: any) {
     // Column may already exist in some MySQL versions that don't support IF NOT EXISTS
     if (!err.message?.includes('Duplicate column')) {

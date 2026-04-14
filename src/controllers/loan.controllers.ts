@@ -13,7 +13,8 @@ export const getAllLoans = async (c: Context) => {
                 users.Email,
                 book.Title,
                 book.Author,
-                book.isbn
+                book.isbn,
+                book.Image_URL
             FROM loan
             JOIN users ON loan.User_id = users.User_id
             JOIN book ON loan.Book_id = book.Book_id`
@@ -34,7 +35,8 @@ export const getLoansByUser = async (c: Context) => {
                 book.Title,
                 book.Author,
                 book.isbn,
-                book.Status
+                book.Status AS Book_Status,
+                book.Image_URL
             FROM loan
             JOIN book ON loan.Book_id = book.Book_id
             WHERE loan.User_id = ?`, [id]

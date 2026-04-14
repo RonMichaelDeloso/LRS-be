@@ -114,7 +114,6 @@ export const approveReservation = async (c: Context) => {
     const id = c.req.param("id");
 
     try{
-        // Get reservation with user and book info BEFORE updating
         const [reservationRows]: any = await pool.query(
             `SELECT reservation.User_id, reservation.Book_id, book.Title
              FROM reservation
@@ -128,7 +127,7 @@ export const approveReservation = async (c: Context) => {
 
         const { User_id, Book_id, Title } = reservationRows[0];
 
-        // Update reservation status to Completed
+        // Set status to Completed (book is ready for pickup)
         await pool.query(
             `UPDATE reservation SET Status = 'Completed' WHERE Reserve_id = ?`, [id]
         );
@@ -138,7 +137,7 @@ export const approveReservation = async (c: Context) => {
             `UPDATE book SET Status = 'Loaned' WHERE Book_id = ?`, [Book_id]
         );
 
-        // Insert notification for the student
+        // Notify the student
         await pool.query(
             `INSERT INTO notifications (User_id, Message, is_read)
              VALUES (?, ?, 0)`,
@@ -152,28 +151,80 @@ export const approveReservation = async (c: Context) => {
     }
 };
 
+export const returnReservation = async (c: Context) => {
+    const id = c.req.param("id");
+
+    try {
+        // Get book_id before deleting
+        const [reservationRows]: any = await pool.query(
+            `SELECT Book_id FROM reservation WHERE Reserve_id = ?`, [id]
+        );
+
+        if (reservationRows.length === 0) {
+            return c.json({ message: "Reservation not found" }, 404);
+        }
+
+        const { Book_id } = reservationRows[0];
+
+        // DELETE the reservation row entirely (no 'Returned' status in DB)
+        await pool.query(
+            `DELETE FROM reservation WHERE Reserve_id = ?`, [id]
+        );
+
+        // Set book back to Available
+        await pool.query(
+            `UPDATE book SET Status = 'Available' WHERE Book_id = ?`, [Book_id]
+        );
+
+        return c.json({ message: "Book returned successfully" }, 200);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error}, 500);
+    }
+};
+
 export const cancelReservation = async (c: Context) => {
     const id = c.req.param("id");
 
     try {
-        // Get book_id from reservation
-        const [reservation]: any = await pool.query(
-            `SELECT Book_id FROM reservation WHERE Reserve_id = ?`, [id]
+        // Use LEFT JOIN so cancel still works even if book data is inconsistent
+        const [reservationRows]: any = await pool.query(
+            `SELECT reservation.User_id, reservation.Book_id, book.Title
+             FROM reservation
+             LEFT JOIN book ON reservation.Book_id = book.Book_id
+             WHERE reservation.Reserve_id = ?`, [id]
         );
 
-        // Update reservation status
+        if (reservationRows.length === 0) {
+            return c.json({ message: "Reservation not found" }, 404);
+        }
+
+        const { User_id, Book_id, Title } = reservationRows[0];
+
+        // Cancel the reservation
         await pool.query(
             `UPDATE reservation SET Status = 'Cancelled' WHERE Reserve_id = ?`, [id]
         );
 
-        // Update book status back to available
-        await pool.query(
-            `UPDATE book SET Status = 'Available' WHERE Book_id = ?`,
-            [reservation[0].Book_id]
-        );
+        // Set book back to Available
+        if (Book_id) {
+            await pool.query(
+                `UPDATE book SET Status = 'Available' WHERE Book_id = ?`, [Book_id]
+            );
+        }
+
+        // Notify the student (best-effort)
+        if (User_id) {
+            const bookName = Title || 'your reserved book';
+            await pool.query(
+                `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
+                [User_id, `Your reservation for "${bookName}" has been cancelled.`]
+            );
+        }
 
         return c.json({ message: "Reservation cancelled successfully"}, 200);
     } catch (error) {
+        console.error('cancelReservation error:', error);
         return c.json({ message: "Server error", error}, 500);
     }
 };
