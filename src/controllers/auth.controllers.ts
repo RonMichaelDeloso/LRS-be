@@ -197,3 +197,13 @@ export const acceptAdminInvite = async (c: Context) => {
         return c.json({ message: "Server error", error }, 500);
     }
 };
+
+export const getTotalUsers = async (c: Context) => {
+    try {
+        const [users]: any = await pool.query("SELECT COUNT(*) as total FROM users");
+        return c.json({ total: users[0].total }, 200);
+    } catch (error) {
+        console.error(error);
+        return c.json({ message: "Server error", error }, 500);
+    }
+};
