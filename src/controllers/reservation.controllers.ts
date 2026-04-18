@@ -222,6 +222,25 @@ export const cancelReservation = async (c: Context) => {
             );
         }
 
+        // Notify all admins about the cancellation
+        const [adminRows]: any = await pool.query(
+            `SELECT users.User_id FROM users JOIN role ON users.Role_id = role.Role_id WHERE role.Role_name = 'Admin'`
+        );
+        const [userRows]: any = await pool.query(
+            `SELECT First_name, Last_name FROM users WHERE User_id = ?`, [User_id]
+        );
+        if (userRows.length > 0 && adminRows.length > 0) {
+            const username = `${userRows[0].First_name} ${userRows[0].Last_name}`;
+            const bookName = Title || 'a book';
+            const adminMsg = `${username} has cancelled their reservation for "${bookName}".`;
+            for (const admin of adminRows) {
+                await pool.query(
+                    `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
+                    [admin.User_id, adminMsg]
+                );
+            }
+        }
+
         return c.json({ message: "Reservation cancelled successfully"}, 200);
     } catch (error) {
         console.error('cancelReservation error:', error);
