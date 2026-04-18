@@ -69,7 +69,8 @@ export const login = async (c: Context) => {
                 First_name: user.First_name,
                 Last_name: user.Last_name,
                 Email: user.Email,
-                status: user.status
+                status: user.status,
+                ProfilePic: user.ProfilePic || null
             }
         }, 200);
 
