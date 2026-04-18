@@ -9,7 +9,8 @@ export interface UserModel extends RowDataPacket {
   Password: string;
   Max_books_allowed: number;
   status: 'Active' | 'Inactive';
-  employee_id: string | null;  // Added for admin users
+  employee_id: string | null;  
   reset_otp: string | null;
   reset_otp_expires: Date | null;
+  picturepic: string | null;
 }

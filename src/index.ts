@@ -28,6 +28,19 @@ async function runMigrations() {
       ADD COLUMN IF NOT EXISTS \`type\` VARCHAR(50) DEFAULT 'general'
     `);
     console.log('✅ Migration: notifications.type column ready.');
+    
+    // Auto-migrate: ensure 'ProfilePic' column exists in users table (Compatible approach)
+    try {
+      const [columns]: any = await pool.query("SHOW COLUMNS FROM users LIKE 'ProfilePic'");
+      if (columns.length === 0) {
+        await pool.query("ALTER TABLE users ADD COLUMN ProfilePic VARCHAR(255) NULL");
+        console.log('✅ Migration: users.ProfilePic column added.');
+      } else {
+        console.log('✅ Migration: users.ProfilePic column already exists.');
+      }
+    } catch (e: any) {
+      console.error('Migration error (users table):', e.message);
+    }
 
     // Add 'Cancelled' to reservation Status ENUM
     await pool.query(`

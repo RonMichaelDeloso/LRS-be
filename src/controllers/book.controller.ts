@@ -51,6 +51,7 @@ export const addBook = async (c: Context) => {
   const isbn = body.isbn as string;
   const Title = body.Title as string;
   const Author = body.Author as string;
+  const Description = body.Description as string || null;
   
   let Genre_id: number[] = [];
   if (body.Genre_id) {
@@ -81,8 +82,8 @@ export const addBook = async (c: Context) => {
     }
 
     const [result]: any = await pool.query(
-      'INSERT INTO book (User_id, isbn, Title, Author, Image_URL) VALUES (?, ?, ?, ?, ?)',
-      [User_id, isbn, Title, Author, Image_URL]
+      'INSERT INTO book (User_id, isbn, Title, Author, discription, Image_URL) VALUES (?, ?, ?, ?, ?, ?)',
+      [User_id, isbn, Title, Author, Description, Image_URL]
     );
 
     const Book_id = result.insertId;
@@ -107,6 +108,7 @@ export const updateBook = async (c: Context) => {
   const isbn = body.isbn as string;
   const Title = body.Title as string;
   const Author = body.Author as string;
+  const Description = body.Description as string || null;
   const Status = body.Status as string;
 
   const image = body.image instanceof File ? body.image : undefined;
@@ -128,13 +130,13 @@ export const updateBook = async (c: Context) => {
       Image_URL = `uploads/${fileName}`;
       
       await pool.query(
-        'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ?, Image_URL = ? WHERE Book_id = ?',
-        [isbn, Title, Author, Status, Image_URL, id]
+        'UPDATE book SET isbn = ?, Title = ?, Author = ?, discription = ?, Status = ?, Image_URL = ? WHERE Book_id = ?',
+        [isbn, Title, Author, Description, Status, Image_URL, id]
       );
     } else {
       await pool.query(
-        'UPDATE book SET isbn = ?, Title = ?, Author = ?, Status = ? WHERE Book_id = ?',
-        [isbn, Title, Author, Status, id]
+        'UPDATE book SET isbn = ?, Title = ?, Author = ?, discription = ?, Status = ? WHERE Book_id = ?',
+        [isbn, Title, Author, Description, Status, id]
       );
     }
 
