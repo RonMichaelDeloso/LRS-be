@@ -28,7 +28,7 @@ async function runMigrations() {
       ADD COLUMN IF NOT EXISTS \`type\` VARCHAR(50) DEFAULT 'general'
     `);
     console.log('✅ Migration: notifications.type column ready.');
-    
+
     // Auto-migrate: ensure 'ProfilePic' column exists in users table (Compatible approach)
     try {
       const [columns]: any = await pool.query("SHOW COLUMNS FROM users LIKE 'ProfilePic'");

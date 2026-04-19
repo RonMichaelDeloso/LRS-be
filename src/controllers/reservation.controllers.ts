@@ -21,15 +21,15 @@ export const getAllReservations = async (c: Context) => {
         );
 
         return c.json(rows, 200);
-    } catch(error) {
-        return c.json({ message: "Server error", error}, 500);
+    } catch (error) {
+        return c.json({ message: "Server error", error }, 500);
     }
 };
 
 export const getReservationByUser = async (c: Context) => {
     const id = c.req.param("id");
 
-    try{
+    try {
         const [rows] = await pool.query<ReservationModel[]>(
             `SELECT reservation.*,
             book.Title,
@@ -43,8 +43,8 @@ export const getReservationByUser = async (c: Context) => {
         );
         return c.json(rows, 200);
     } catch (error) {
-        return c.json({ message: "Server error", error}, 500);
-    }  
+        return c.json({ message: "Server error", error }, 500);
+    }
 };
 
 export const createReservation = async (c: Context) => {
@@ -70,7 +70,7 @@ export const createReservation = async (c: Context) => {
         );
 
         if (existing.length > 0) {
-            return c.json({ message: "You already have a pending reservation for this book"}, 400);
+            return c.json({ message: "You already have a pending reservation for this book" }, 400);
         }
 
         // Create reservation
@@ -92,7 +92,7 @@ export const createReservation = async (c: Context) => {
         const [userRows]: any = await pool.query(
             `SELECT First_name, Last_name FROM users WHERE User_id = ?`, [User_id]
         );
-        
+
         if (userRows.length > 0) {
             const username = `${userRows[0].First_name} ${userRows[0].Last_name}`;
             const message = `A new reservation has been made by ${username} for the book "${book[0].Title}".`;
@@ -104,16 +104,16 @@ export const createReservation = async (c: Context) => {
             }
         }
 
-        return c.json({ message: "Reservation created successfully"}, 201);
-    } catch (error){
-        return c.json({ message: "Server error", error}, 500);
+        return c.json({ message: "Reservation created successfully" }, 201);
+    } catch (error) {
+        return c.json({ message: "Server error", error }, 500);
     }
 };
 
 export const approveReservation = async (c: Context) => {
     const id = c.req.param("id");
 
-    try{
+    try {
         const [reservationRows]: any = await pool.query(
             `SELECT reservation.User_id, reservation.Book_id, book.Title
              FROM reservation
@@ -147,7 +147,7 @@ export const approveReservation = async (c: Context) => {
         return c.json({ message: "Reservation approved successfully" }, 200);
     } catch (error) {
         console.error(error);
-        return c.json({ message: "Server error", error}, 500);
+        return c.json({ message: "Server error", error }, 500);
     }
 };
 
@@ -166,9 +166,10 @@ export const returnReservation = async (c: Context) => {
 
         const { Book_id } = reservationRows[0];
 
-        // DELETE the reservation row entirely (no 'Returned' status in DB)
+        // Update the reservation status to 'Returned' instead of deleting it
+        // so it tracks properly on the dashboard charts.
         await pool.query(
-            `DELETE FROM reservation WHERE Reserve_id = ?`, [id]
+            `UPDATE reservation SET Status = 'Returned' WHERE Reserve_id = ?`, [id]
         );
 
         // Set book back to Available
@@ -179,12 +180,19 @@ export const returnReservation = async (c: Context) => {
         return c.json({ message: "Book returned successfully" }, 200);
     } catch (error) {
         console.error(error);
-        return c.json({ message: "Server error", error}, 500);
+        return c.json({ message: "Server error", error }, 500);
     }
 };
 
 export const cancelReservation = async (c: Context) => {
     const id = c.req.param("id");
+
+    // cancelledBy: 'admin' | 'student' — sent from the frontend
+    let cancelledBy = 'student';
+    try {
+        const body = await c.req.json().catch(() => ({}));
+        if (body?.cancelledBy) cancelledBy = body.cancelledBy;
+    } catch {}
 
     try {
         // Use LEFT JOIN so cancel still works even if book data is inconsistent
@@ -213,37 +221,55 @@ export const cancelReservation = async (c: Context) => {
             );
         }
 
-        // Notify the student (best-effort)
-        if (User_id) {
-            const bookName = Title || 'your reserved book';
-            await pool.query(
-                `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
-                [User_id, `Your reservation for "${bookName}" has been cancelled.`]
-            );
-        }
-
-        // Notify all admins about the cancellation
-        const [adminRows]: any = await pool.query(
-            `SELECT users.User_id FROM users JOIN role ON users.Role_id = role.Role_id WHERE role.Role_name = 'Admin'`
-        );
         const [userRows]: any = await pool.query(
             `SELECT First_name, Last_name FROM users WHERE User_id = ?`, [User_id]
         );
-        if (userRows.length > 0 && adminRows.length > 0) {
-            const username = `${userRows[0].First_name} ${userRows[0].Last_name}`;
-            const bookName = Title || 'a book';
-            const adminMsg = `${username} has cancelled their reservation for "${bookName}".`;
+        const username = userRows.length > 0
+            ? `${userRows[0].First_name} ${userRows[0].Last_name}`
+            : 'User';
+        const bookName = Title || 'a book';
+
+        if (cancelledBy === 'admin') {
+            // Admin cancelled → tell student the admin did it
+            if (User_id) {
+                await pool.query(
+                    `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
+                    [User_id, `Your reservation for "${bookName}" has been cancelled by the library admin.`]
+                );
+            }
+            // Notify all admins that they cancelled it
+            const [adminRows]: any = await pool.query(
+                `SELECT users.User_id FROM users JOIN role ON users.Role_id = role.Role_id WHERE role.Role_name = 'Admin'`
+            );
             for (const admin of adminRows) {
                 await pool.query(
                     `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
-                    [admin.User_id, adminMsg]
+                    [admin.User_id, `You cancelled the reservation for "${bookName}" by ${username}.`]
+                );
+            }
+        } else {
+            // Student cancelled → tell student they cancelled it
+            if (User_id) {
+                await pool.query(
+                    `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
+                    [User_id, `You have cancelled your reservation for "${bookName}".`]
+                );
+            }
+            // Notify all admins that the student cancelled
+            const [adminRows]: any = await pool.query(
+                `SELECT users.User_id FROM users JOIN role ON users.Role_id = role.Role_id WHERE role.Role_name = 'Admin'`
+            );
+            for (const admin of adminRows) {
+                await pool.query(
+                    `INSERT INTO notifications (User_id, Message, is_read) VALUES (?, ?, 0)`,
+                    [admin.User_id, `${username} has cancelled their reservation for "${bookName}".`]
                 );
             }
         }
 
-        return c.json({ message: "Reservation cancelled successfully"}, 200);
+        return c.json({ message: "Reservation cancelled successfully" }, 200);
     } catch (error) {
         console.error('cancelReservation error:', error);
-        return c.json({ message: "Server error", error}, 500);
+        return c.json({ message: "Server error", error }, 500);
     }
 };
